@@ -272,7 +272,7 @@ def main_dashboard():
             narrative = generate_ai_narrative(metrics, metrics['top_overspends'])
             st.session_state.ai_narrative = narrative
             st.success("AI Analysis Complete!")
-            st.experimental_rerun() # Rerun to refresh the AI Insights tab
+            st.rerun() # CORRECTED: Changed st.experimental_rerun() to st.rerun()
 
 def ai_insights():
     """Renders the AI Narrative and simulated insights."""

@@ -1,360 +1,253 @@
-# FINSIGHT CORE V1.0 - STREAMLIT DEPLOYMENT
-# This script mimics the functionality of the React dashboard in a Streamlit environment,
-# including predictive charts and the AI Narrative Engine powered by the Gemini API.
+# FINSIGHT CORE V2.0 - "LIQUID GLASS" UI
+# Advanced Styling with Glassmorphism, Direct/Indirect Cost logic, and Plotly Charts.
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
 import json
-import time # For exponential backoff and loading simulation
+import plotly.graph_objects as go
+import plotly.express as px
 
 # --- CONFIGURATION & SETUP ---
-st.set_page_config(layout="wide", page_title="FinSight Core Demo")
+st.set_page_config(layout="wide", page_title="FinSight Core | Liquid Glass")
 
-# Brand Colors (for visual consistency)
-COLORS = {
-    'sage': '#8B9D83',
-    'forest': '#2C3E2A',
-    'forecast': '#EAB308',
-    'alert': '#EF4444',
-    'success': '#10B981'
-}
+# --- CUSTOM CSS FOR GLASSMORPHISM ---
+# This injects CSS to override Streamlit's default look
+st.markdown("""
+<style>
+    /* 1. The Main Background Gradient */
+    .stApp {
+        background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
+        background-attachment: fixed;
+    }
+    
+    /* 2. Glass Card Style Class */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        padding: 20px;
+        margin-bottom: 20px;
+        color: white;
+    }
+
+    /* 3. Text Styling */
+    h1, h2, h3, p, div, span {
+        color: white !important;
+        font-family: 'Helvetica Neue', sans-serif;
+    }
+    
+    /* 4. Remove Streamlit default padding for tighter look */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Gemini API Configuration
 GEMINI_MODEL = 'gemini-2.5-flash-preview-09-2025'
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
-# --- MOCK DATA ---
-# Combined Actual (Jan-Jun) and Forecast (Jul-Dec) data
+# --- MOCK DATA (Updated for Direct/Indirect Costs) ---
 ANNUAL_DATA = pd.DataFrame([
-    # Actuals
-    {'month': 'Jan', 'revenue_act': 120000, 'revenue_bud': 115000, 'opex_act': 85000, 'opex_bud': 80000},
-    {'month': 'Feb', 'revenue_act': 125000, 'revenue_bud': 118000, 'opex_act': 82000, 'opex_bud': 82000},
-    {'month': 'Mar', 'revenue_act': 110000, 'revenue_bud': 122000, 'opex_act': 88000, 'opex_bud': 81000},
-    {'month': 'Apr', 'revenue_act': 140000, 'revenue_bud': 125000, 'opex_act': 95000, 'opex_bud': 85000},
-    {'month': 'May', 'revenue_act': 135000, 'revenue_bud': 130000, 'opex_act': 89000, 'opex_bud': 86000},
-    {'month': 'Jun', 'revenue_act': 155000, 'revenue_bud': 140000, 'opex_act': 102000, 'opex_bud': 90000},
-    # Forecasts (Note: Using 'revenue_act' for simplicity in Streamlit plotting)
-    {'month': 'Jul', 'revenue_act': 145000, 'revenue_bud': 135000, 'opex_act': 92000, 'opex_bud': 88000},
-    {'month': 'Aug', 'revenue_act': 148000, 'revenue_bud': 138000, 'opex_act': 91000, 'opex_bud': 88000},
-    {'month': 'Sep', 'revenue_act': 160000, 'revenue_bud': 150000, 'opex_act': 98000, 'opex_bud': 92000},
-    {'month': 'Oct', 'revenue_act': 158000, 'revenue_bud': 145000, 'opex_act': 95000, 'opex_bud': 90000},
-    {'month': 'Nov', 'revenue_act': 165000, 'revenue_bud': 155000, 'opex_act': 105000, 'opex_bud': 95000},
-    {'month': 'Dec', 'revenue_act': 180000, 'revenue_bud': 170000, 'opex_act': 110000, 'opex_bud': 100000},
+    # Actuals (Jan-Jun)
+    {'month': 'Jan', 'type': 'Actual', 'revenue': 120000, 'direct_cost': 48000, 'indirect_cost': 40000},
+    {'month': 'Feb', 'type': 'Actual', 'revenue': 125000, 'direct_cost': 50000, 'indirect_cost': 41000},
+    {'month': 'Mar', 'type': 'Actual', 'revenue': 110000, 'direct_cost': 44000, 'indirect_cost': 42000},
+    {'month': 'Apr', 'type': 'Actual', 'revenue': 140000, 'direct_cost': 56000, 'indirect_cost': 43000},
+    {'month': 'May', 'type': 'Actual', 'revenue': 135000, 'direct_cost': 54000, 'indirect_cost': 42000},
+    {'month': 'Jun', 'type': 'Actual', 'revenue': 155000, 'direct_cost': 62000, 'indirect_cost': 45000},
+    # Forecasts (Jul-Dec)
+    {'month': 'Jul', 'type': 'Forecast', 'revenue': 145000, 'direct_cost': 58000, 'indirect_cost': 44000},
+    {'month': 'Aug', 'type': 'Forecast', 'revenue': 148000, 'direct_cost': 59200, 'indirect_cost': 44500},
+    {'month': 'Sep', 'type': 'Forecast', 'revenue': 160000, 'direct_cost': 64000, 'indirect_cost': 46000},
+    {'month': 'Oct', 'type': 'Forecast', 'revenue': 158000, 'direct_cost': 63200, 'indirect_cost': 45500},
+    {'month': 'Nov', 'type': 'Forecast', 'revenue': 165000, 'direct_cost': 66000, 'indirect_cost': 47000},
+    {'month': 'Dec', 'type': 'Forecast', 'revenue': 180000, 'direct_cost': 72000, 'indirect_cost': 48000},
 ])
 
-DEPT_DATA = pd.DataFrame([
-    {'dept': 'Sales', 'actual': 450000, 'budget': 420000},
-    {'dept': 'Marketing', 'actual': 320000, 'budget': 280000},
-    {'dept': 'Product', 'actual': 580000, 'budget': 600000},
-    {'dept': 'G&A', 'actual': 150000, 'budget': 145000},
-    {'dept': 'IT', 'actual': 210000, 'budget': 200000},
-])
+# Calculate Margins
+ANNUAL_DATA['gross_margin'] = ANNUAL_DATA['revenue'] - ANNUAL_DATA['direct_cost']
+ANNUAL_DATA['net_profit'] = ANNUAL_DATA['gross_margin'] - ANNUAL_DATA['indirect_cost']
 
-# --- UTILITIES ---
+# --- HELPER FUNCTIONS ---
 
-def format_currency(amount):
-    return f"£{amount / 1000:.1f}k"
+def format_k(val):
+    return f"£{val/1000:.1f}k"
 
-def calculate_metrics(df, dept_df):
-    """Calculates all MTD, YTD, and FY metrics."""
-    # Data Split
-    ytd_df = df.iloc[0:6]
-    fy_forecast_df = df.iloc[6:12]
-
-    # MTD (June)
-    mtd_rev_act = ytd_df['revenue_act'].iloc[-1]
-    mtd_rev_bud = ytd_df['revenue_bud'].iloc[-1]
+def render_glass_metric(label, value, subvalue, is_positive=True):
+    """Renders a customized HTML card."""
+    arrow = "↑" if is_positive else "↓"
+    color = "#4ade80" if is_positive else "#f87171" # Green or Red
     
-    # YTD (Jan-Jun)
-    ytd_rev_act = ytd_df['revenue_act'].sum()
-    ytd_rev_bud = ytd_df['revenue_bud'].sum()
-    
-    # FY Outlook
-    fy_rev_forecast = ytd_rev_act + fy_forecast_df['revenue_act'].sum()
-    fy_rev_budget = df['revenue_bud'].sum()
-
-    # OpEx YTD Variance for Narrative
-    ytd_opex_act = ytd_df['opex_act'].sum()
-    ytd_opex_bud = ytd_df['opex_bud'].sum()
-    
-    # Departmental Variances for Narrative
-    dept_df['variance'] = dept_df['actual'] - dept_df['budget']
-    dept_df['pct_var'] = (dept_df['variance'] / dept_df['budget']) * 100
-    top_overspends = dept_df[dept_df['variance'] > 0].sort_values(by='variance', ascending=False).head(2)
-
-    return {
-        'mtd_rev_act': mtd_rev_act, 'mtd_rev_bud': mtd_rev_bud,
-        'ytd_rev_act': ytd_rev_act, 'ytd_rev_bud': ytd_rev_bud,
-        'fy_rev_forecast': fy_rev_forecast, 'fy_rev_budget': fy_rev_budget,
-        'ytd_opex_act': ytd_opex_act, 'ytd_opex_bud': ytd_opex_bud,
-        'top_overspends': top_overspends
-    }
-
-def format_variance(actual, budget, is_cost=False):
-    """Calculates variance in £ and %."""
-    variance_abs = actual - budget
-    variance_pct = (variance_abs / budget) * 100 if budget else 0
-    
-    # Determine the indicator color based on type (Revenue/Cost)
-    if is_cost:
-        is_good = variance_abs < 0
-    else:
-        is_good = variance_abs > 0
-        
-    color = COLORS['success'] if is_good else COLORS['alert']
-    
-    # Format string for display
-    return f"""
-        <div style='color: {color}; font-weight: bold;'>
-            {('+' if variance_abs > 0 else '')}{format_currency(variance_abs)} 
-            ({('+' if variance_pct > 0 else '')}{variance_pct:.1f}%)
-        </div>
-    """
-
-def metric_card(title, value, budget_value, variance_html, label=""):
-    """Renders a visually styled metric card."""
     st.markdown(f"""
-        <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); border: 1px solid #f0f0f0; height: 100%;">
-            <p style="color: #6b7280; font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;">{title} <span style="background-color: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 10px; color: #4b5563;">{label}</span></p>
-            <h3 style="font-size: 28px; font-weight: bold; color: #1f2937;">{format_currency(value)}</h3>
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f9fafb; margin-top: 10px; padding-top: 10px;">
-                <span style="color: #9ca3af; font-size: 12px;">Budget: {format_currency(budget_value)}</span>
-                {variance_html}
-            </div>
+    <div class="glass-card">
+        <div style="font-size: 12px; text-transform: uppercase; opacity: 0.8; margin-bottom: 5px;">{label}</div>
+        <div style="font-size: 28px; font-weight: bold; margin-bottom: 5px;">{value}</div>
+        <div style="font-size: 14px; color: {color};">
+            {arrow} {subvalue} <span style="color: white; opacity: 0.6;">vs Target</span>
         </div>
+    </div>
     """, unsafe_allow_html=True)
 
-
-# --- GEMINI AI NARRATIVE FUNCTION ---
-def generate_ai_narrative(metrics, top_overspends):
-    """
-    Constructs the prompt and calls the Gemini API to get structured narrative.
-    """
-    fy_var_pct = ((metrics['fy_rev_forecast'] - metrics['fy_rev_budget']) / metrics['fy_rev_budget']) * 100
-    ytd_opex_var_pct = ((metrics['ytd_opex_act'] - metrics['ytd_opex_bud']) / metrics['ytd_opex_bud']) * 100
-
-    top_variances_list = [
-        f"* **{row['dept']}**: Overspent by **{format_currency(row['variance'])}** ({row['pct_var']:.1f}%) YTD."
-        for index, row in top_overspends.iterrows()
-    ]
-    top_variances_str = "\n".join(top_variances_list) if top_variances_list else "* No significant departmental overspends detected."
-
-
-    financial_context = f"""
-    Key Financial Context (as of June 2024, Month 6/12):
-    - Full Year Revenue Forecast: {format_currency(metrics['fy_rev_forecast'])}
-    - Full Year Revenue Budget: {format_currency(metrics['fy_rev_budget'])}
-    - Full Year Revenue Variance: {fy_var_pct:.1f}% ({'Favourable' if fy_var_pct > 0 else 'Adverse'})
-    - YTD OpEx Variance (Actual vs Budget): {ytd_opex_var_pct:.1f}% ({'Adverse' if ytd_opex_var_pct > 0 else 'Favourable'})
-    - Top Departmental Overspends YTD:
-      {top_variances_str}
-    """
-
-    # ENFORCING BOARD-READY STRUCTURE (Step 2. Refinement)
-    system_prompt = """
-    You are a Senior Financial Analyst creating a board memo for the CFO. Your output MUST be in clear, structured Markdown. 
-    - Use '##' for the main section headings.
-    - Use markdown bullet points ('*') for all key data points.
-    - Bold significant numbers and terms.
-    - The tone must be professional, action-oriented, and strategic.
-    Generate a summary covering Revenue, Expenses, and a forward-looking Conclusion based on the context.
-    """
-
-    user_query = f"Generate the structured executive summary using the following data context. The memo must be ready for immediate copy-paste into a board deck slide. Current Period: June 2024.\n\n{financial_context}"
-
-    payload = {
-        'contents': [{'parts': [{'text': user_query}]}],
-        'systemInstruction': {'parts': [{'text': system_prompt}]},
-        'tools': [{"google_search": {} }]
-    }
-
-    # API Key Retrieval (Crucial for Streamlit Cloud Deployment)
+# --- GEMINI AI NARRATIVE ---
+def generate_glass_narrative(data):
     try:
         api_key = st.secrets["GEMINI_API_KEY"]
     except KeyError:
-        return "AI Narrative Failed: API Key not found in Streamlit secrets. Please configure it for deployment."
+        return "⚠️ API Key Missing"
 
-    # Exponential Backoff for Robustness
-    max_retries = 3
-    for i in range(max_retries):
-        try:
-            # We must pass the API key as a query parameter in a real environment
-            response = requests.post(f"{API_URL}?key={api_key}", headers={'Content-Type': 'application/json'}, data=json.dumps(payload))
-            response.raise_for_status() # Raises an exception for HTTP error codes
-            
-            result = response.json()
-            narrative = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', "Generation failed to return text.")
-            return narrative
-
-        except requests.exceptions.RequestException as e:
-            wait_time = 2 ** i
-            if i < max_retries - 1:
-                time.sleep(wait_time)
-                continue
-            else:
-                return f"Gemini API call failed after {max_retries} retries: {e}"
-        except Exception as e:
-            return f"AI Narrative Failed: An unexpected error occurred: {e}"
-    return "AI Narrative Failed."
-
-# --- STREAMLIT APP LAYOUT ---
-
-def main_dashboard():
-    """Renders the main Dashboard and triggers the AI Analysis."""
-    st.header("Financial Performance & Outlook", divider='gray')
-    st.markdown("Period: June 2024 (Month 6) • Currency: GBP (£)")
-
-    metrics = calculate_metrics(ANNUAL_DATA, DEPT_DATA.copy())
-
-    # --- Header Metrics (MTD, YTD, FY) ---
-    st.subheader("Revenue Performance")
-    col1, col2, col3 = st.columns(3)
+    # Prepare context
+    current_month = data[data['type'] == 'Actual'].iloc[-1]
+    fy_rev = data['revenue'].sum()
+    fy_net = data['net_profit'].sum()
     
-    with col1:
-        metric_card(
-            "Month to Date (MTD)", metrics['mtd_rev_act'], metrics['mtd_rev_bud'],
-            format_variance(metrics['mtd_rev_act'], metrics['mtd_rev_bud']), "June"
-        )
-    with col2:
-        metric_card(
-            "Year to Date (YTD)", metrics['ytd_rev_act'], metrics['ytd_rev_bud'],
-            format_variance(metrics['ytd_rev_act'], metrics['ytd_rev_bud']), "Jan - Jun"
-        )
-    with col3:
-        metric_card(
-            "Full Year Outlook (FY)", metrics['fy_rev_forecast'], metrics['fy_rev_budget'],
-            format_variance(metrics['fy_rev_forecast'], metrics['fy_rev_budget']), "Actuals + Forecast"
-        )
-
-    st.markdown("---")
-
-    # --- Predictive Forecast Chart ---
-    st.subheader("Predictive Revenue Forecast")
+    context = f"""
+    Current Month (Jun): Rev {format_k(current_month['revenue'])}, Direct Cost {format_k(current_month['direct_cost'])}, Indirect {format_k(current_month['indirect_cost'])}.
+    Full Year Forecast: Rev {format_k(fy_rev)}, Net Profit {format_k(fy_net)}.
+    """
     
-    # Chart data prep: Melt DataFrame to plot Actuals and Budget/Forecast cleanly
-    chart_df = ANNUAL_DATA[['month', 'revenue_act', 'revenue_bud']].rename(columns={'revenue_act': 'Revenue', 'revenue_bud': 'Budget'})
-    
-    # Create a column to distinguish actuals vs forecast for color coding
-    chart_df['Type'] = ['Actual'] * 6 + ['Forecast'] * 6
+    prompt = f"""You are a CFO's AI Assistant. Write a 3-bullet executive summary based on this data: {context}. 
+    Focus on the split between Direct Costs (COGS) and Indirect Costs (OpEx). 
+    Keep it punchy, professional, and under 100 words. Output raw text with bullet points."""
 
-    st.line_chart(
-        chart_df, 
-        x='month', 
-        y=['Revenue', 'Budget'],
-        color=[COLORS['sage'], COLORS['forest']],
-        height=400
+    payload = {
+        'contents': [{'parts': [{'text': prompt}]}]
+    }
+    
+    try:
+        response = requests.post(f"{API_URL}?key={api_key}", headers={'Content-Type': 'application/json'}, data=json.dumps(payload))
+        if response.status_code == 200:
+            return response.json()['candidates'][0]['content']['parts'][0]['text']
+    except:
+        return "AI Service Unavailable"
+    return "AI Service Unavailable"
+
+# --- MAIN LAYOUT ---
+
+# 1. Header
+st.markdown("""
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+        <h1 style="margin:0; font-size: 2.5rem;">FinSight Core</h1>
+        <p style="opacity: 0.8;">Liquid Glass Interface • Live Connection</p>
+    </div>
+    <div class="glass-card" style="padding: 10px 20px; margin:0;">
+        User: Aaron M. • Admin
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# 2. KPI Cards (Row 1)
+c1, c2, c3, c4 = st.columns(4)
+
+# Calculate YTD Totals for cards
+ytd = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'].sum()
+
+with c1:
+    render_glass_metric("Total Revenue (YTD)", format_k(ytd['revenue']), "+12%", True)
+with c2:
+    render_glass_metric("Direct Costs (COGS)", format_k(ytd['direct_cost']), "+5% (Vol)", False)
+with c3:
+    render_glass_metric("Indirect Costs (OpEx)", format_k(ytd['indirect_cost']), "-2% (Savings)", True)
+with c4:
+    render_glass_metric("Net Margin", f"£{ytd['net_profit']/1000:.1f}k", "28%", True)
+
+# 3. Main Charts (Row 2)
+col_main, col_side = st.columns([2, 1])
+
+with col_main:
+    st.markdown('<div class="glass-card" style="height: 450px;">', unsafe_allow_html=True)
+    st.markdown("### Predictive Profitability Forecast")
+    
+    # Plotly Line Chart with Transparent Background
+    fig = go.Figure()
+    
+    # Actual Revenue
+    fig.add_trace(go.Scatter(
+        x=ANNUAL_DATA[ANNUAL_DATA['type']=='Actual']['month'],
+        y=ANNUAL_DATA[ANNUAL_DATA['type']=='Actual']['revenue'],
+        mode='lines+markers', name='Actual Rev',
+        line=dict(color='#ffffff', width=3)
+    ))
+    
+    # Forecast Revenue
+    fig.add_trace(go.Scatter(
+        x=ANNUAL_DATA[ANNUAL_DATA['type']=='Forecast']['month'],
+        y=ANNUAL_DATA[ANNUAL_DATA['type']=='Forecast']['revenue'],
+        mode='lines', name='Forecast Rev',
+        line=dict(color='#ffffff', width=3, dash='dot')
+    ))
+
+    # Costs (Area)
+    fig.add_trace(go.Scatter(
+        x=ANNUAL_DATA['month'],
+        y=ANNUAL_DATA['direct_cost'] + ANNUAL_DATA['indirect_cost'],
+        mode='lines', name='Total Costs',
+        fill='tozeroy',
+        line=dict(color='rgba(255, 100, 100, 0.5)', width=0),
+        fillcolor='rgba(255, 100, 100, 0.2)'
+    ))
+
+    # Glass Chart Styling
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='white'),
+        margin=dict(l=20, r=20, t=20, b=20),
+        height=380,
+        showlegend=True,
+        legend=dict(orientation="h", y=1.1)
     )
-    st.caption("Actuals are solid lines (Jan-Jun). Forecast values (Jul-Dec) are predictive. Budget is the dark line.")
+    st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("---")
-
-    # --- Departmental Summary Table ---
-    st.subheader("Departmental P&L (YTD)")
+with col_side:
+    st.markdown('<div class="glass-card" style="height: 450px;">', unsafe_allow_html=True)
+    st.markdown("### Cost Structure")
     
-    dept_display = DEPT_DATA.copy()
-    dept_display['Variance (£)'] = dept_display['actual'] - dept_display['budget']
-    dept_display['Variance (%)'] = ((dept_display['Variance (£)'] / dept_display['budget']) * 100).round(1).astype(str) + '%'
-    dept_display = dept_display[['dept', 'actual', 'budget', 'Variance (£)', 'Variance (%)']].rename(
-        columns={'dept': 'Department', 'actual': 'Actual (£)', 'budget': 'Budget (£)'}
+    # Donut Chart for Cost Split
+    labels = ['Direct Costs', 'Indirect Costs', 'Net Margin']
+    values = [ytd['direct_cost'], ytd['indirect_cost'], ytd['net_profit']]
+    
+    fig_donut = go.Figure(data=[go.Pie(
+        labels=labels, values=values, hole=.6,
+        marker=dict(colors=['#ff9f43', '#ff6b6b', '#1dd1a1'])
+    )])
+    
+    fig_donut.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='white'),
+        margin=dict(l=0, r=0, t=20, b=0),
+        height=300,
+        showlegend=True,
+        legend=dict(orientation="h", y=0)
     )
-    
-    st.dataframe(dept_display, use_container_width=True)
-    st.caption("Note: Positive Variance (£) indicates an overspend for expense departments.")
-    
-    # --- AI Narrative Trigger ---
-    st.markdown("---")
-    st.subheader("AI Narrative Generation")
-    
-    if st.button("🚀 Run AI Analysis & Generate Board Memo", type="primary"):
-        with st.spinner('FinSight AI is analyzing variances, integrating predictive signals, and drafting the Executive Summary...'):
-            narrative = generate_ai_narrative(metrics, metrics['top_overspends'])
-            st.session_state.ai_narrative = narrative
-            st.success("AI Analysis Complete!")
-            st.rerun() # CORRECTED: Changed st.experimental_rerun() to st.rerun()
+    st.plotly_chart(fig_donut, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-def ai_insights():
-    """Renders the AI Narrative and simulated insights."""
-    st.header("AI Narrative Engine", divider='green')
-    st.markdown("### Automated Variance Commentary & Board-Ready Memo")
-    
-    if 'ai_narrative' not in st.session_state:
-        st.session_state.ai_narrative = "Click the 'Run AI Analysis' button on the **Dashboard** tab to generate the first executive summary."
+# 4. AI Section (Row 3)
+st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+c_ai_head, c_ai_btn = st.columns([3,1])
+with c_ai_head:
+    st.markdown("### 🤖 FinSight AI Analyst")
+with c_ai_btn:
+    if st.button("Generate Analysis"):
+        st.session_state['run_ai'] = True
+        st.rerun()
 
-    # --- Executive Summary Output (Renders Markdown from LLM) ---
-    st.markdown(f"""
-        <div style="background-color: #ffffff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); border: 2px solid {COLORS['sage']};">
-            <h4 style="color: {COLORS['forest']}; margin-bottom: 15px; font-weight: bold;">Executive Summary • June 2024</h4>
-            {st.session_state.ai_narrative}
+if st.session_state.get('run_ai'):
+    with st.spinner("Analyzing Cost Structures..."):
+        analysis = generate_glass_narrative(ANNUAL_DATA)
+        st.markdown(f"""
+        <div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; border-left: 4px solid #1dd1a1;">
+            {analysis}
         </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # --- Simulated Insights (Fixed for Demo) ---
-    st.subheader("Automated Risk & Opportunity Signals")
-    st.info("The FinSight Core automatically surfaces anomalies that require investigation:", icon="💡")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.error("🚨 **Cost Anomaly Detected**\n\nMarketing spend in June (£22k) is **2.4 standard deviations** above the 6-month average. Primary driver: 'Agency Retainer - Q3 Prep'.")
-    with col2:
-        st.success("📈 **Revenue Forecast Update**\n\nBased on current run-rates, the ML model projects Q3 Revenue to land at **£480k**, which is £25k ahead of the original January Budget.")
-        
-    st.markdown("---")
-    
-    st.subheader("Conversational Analysis (Ask FinSight AI)")
-    st.code("Why is OpEx so high in June?", language='python')
-    st.markdown("<p style='background-color: #f0f0f0; padding: 10px; border-radius: 5px;'>June OpEx is £12k adverse to budget. Drilling down into the ledger, 80% of this variance comes from GL Code 6100 (Marketing), specifically vendor 'DigitalReach Agency'. This appears to be a timing difference from May. (Simulated AI Response)</p>", unsafe_allow_html=True)
-
-
-def data_engine():
-    """Renders the Data Engine view."""
-    st.header("Data Engine (ETL Blueprint)", divider='gray')
-    st.markdown("### Managed Warehouse & Transformation Pipelines")
-    
-    st.info("This view demonstrates the client's ownership of the data pipeline (your **Integration Sprint** deliverable).", icon="🔑")
-
-    st.markdown("#### System Status")
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        st.markdown(f"<span style='background-color: {COLORS['success']}1A; color: {COLORS['success']}; padding: 5px 10px; border-radius: 5px; font-weight: bold;'>✅ ETL Status: Healthy</span>", unsafe_allow_html=True)
-    with col2:
-        st.markdown("<span style='color: #4b5563;'>Last Sync: Today, 09:41 AM via ERP Connector</span>", unsafe_allow_html=True)
-        
-    st.markdown("---")
-
-    st.markdown("#### Transformation Rules (Client-Owned Logic)")
-    st.code("""
-# Python ETL script used in 'data_transformer.py'
-# This logic is deployed locally on client infrastructure.
-
-# 1. Map 'SAP_Export_v2.csv' headers to standard schema
-# 2. Filter Department != 'Intercompany'
-# 3. Calculate 'Gross Margin %'
-    """, language='python')
-    
-    st.markdown("---")
-    st.markdown("#### Raw Data Sample")
-    
-    raw_data = pd.DataFrame([
-        {'Transaction ID': 'TRX-001', 'Date': '2024-06-01', 'Account': '4000-Revenue', 'Dept': 'Sales', 'Amount': 45000, 'Type': 'Actual'},
-        {'Transaction ID': 'TRX-002', 'Date': '2024-06-01', 'Account': '6000-Salaries', 'Dept': 'G&A', 'Amount': 12000, 'Type': 'Actual'},
-        {'Transaction ID': 'TRX-003', 'Date': '2024-06-02', 'Account': '6100-Marketing', 'Dept': 'Marketing', 'Amount': 5600, 'Type': 'Actual'},
-    ])
-    st.dataframe(raw_data, use_container_width=True)
-
-# --- MAIN APP EXECUTION ---
-
-# Create tabs for the multi-view application
-tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "✨ AI Insights", "⚙️ Data Engine"])
-
-with tab1:
-    main_dashboard()
-
-with tab2:
-    ai_insights()
-
-with tab3:
-    data_engine()
+        """, unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)

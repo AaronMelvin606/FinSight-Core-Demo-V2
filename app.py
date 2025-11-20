@@ -1,5 +1,6 @@
-# FINSIGHT CORE V2.1 - "LIQUID GLASS" WITH TABS
-# Combines the Glassmorphism UI with the multi-tab functionality (Dashboard + Data Engine).
+# FINSIGHT CORE V2.2 - "TRUE GLASS" & ADVANCED ANALYTICS
+# Fixes the 'Chart Below Box' issue by applying Glassmorphism directly to Plotly figures.
+# Adds Waterfall Charts and Structured AI Prompts.
 
 import streamlit as st
 import pandas as pd
@@ -12,7 +13,8 @@ import plotly.express as px
 # --- CONFIGURATION & SETUP ---
 st.set_page_config(layout="wide", page_title="FinSight Core | Liquid Glass")
 
-# --- CUSTOM CSS FOR GLASSMORPHISM & TABS ---
+# --- CUSTOM CSS ---
+# We keep the CSS for the text-based cards, but charts will handle their own styling now.
 st.markdown("""
 <style>
     /* 1. Main Gradient Background */
@@ -21,7 +23,7 @@ st.markdown("""
         background-attachment: fixed;
     }
     
-    /* 2. Glass Card Style */
+    /* 2. Text-Only Glass Card (For KPIs & AI) */
     .glass-card {
         background: rgba(255, 255, 255, 0.1);
         box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
@@ -34,16 +36,14 @@ st.markdown("""
         color: white;
     }
 
-    /* 3. Text Styling */
+    /* 3. Global Text Styling */
     h1, h2, h3, h4, p, div, span, label {
         color: white !important;
         font-family: 'Helvetica Neue', sans-serif;
     }
     
-    /* 4. Tab Styling (To make them visible on dark background) */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
+    /* 4. Tab Styling */
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
@@ -102,6 +102,22 @@ def render_glass_metric(label, value, subvalue, is_positive=True):
     </div>
     """, unsafe_allow_html=True)
 
+# --- CHARTING FUNCTIONS (THE FIX) ---
+# Instead of wrapping charts in HTML, we apply the 'Glass' style INSIDE the chart config.
+
+def apply_glass_style(fig):
+    """Applies the transparent glass look to any Plotly chart."""
+    fig.update_layout(
+        paper_bgcolor='rgba(255, 255, 255, 0.1)',  # Semi-transparent background
+        plot_bgcolor='rgba(0,0,0,0)',              # Fully transparent plot area
+        font=dict(color='white'),
+        margin=dict(l=20, r=20, t=40, b=20),
+        # Add a subtle border/shadow effect via Plotly shapes if strictly needed, 
+        # but usually just the bg color is enough for the effect.
+    )
+    return fig
+
+# --- AI NARRATIVE ---
 def generate_glass_narrative(data):
     try:
         api_key = st.secrets["GEMINI_API_KEY"]
@@ -117,9 +133,16 @@ def generate_glass_narrative(data):
     Full Year Forecast: Rev {format_k(fy_rev)}, Net Profit {format_k(fy_net)}.
     """
     
-    prompt = f"""You are a CFO's AI Assistant. Write a 3-bullet executive summary based on this data: {context}. 
-    Focus on the split between Direct Costs (COGS) and Indirect Costs (OpEx). 
-    Keep it punchy, professional, and under 100 words. Output raw text with bullet points."""
+    # UPDATED PROMPT FOR STRUCTURE
+    prompt = f"""You are a CFO's AI Assistant. Write a structured executive memo based on: {context}.
+    
+    Structure requirements:
+    1. Use Markdown Header 3 (###) for section titles.
+    2. Sections: 'Performance Highlights', 'Cost Analysis', 'Strategic Outlook'.
+    3. Use bullet points for details.
+    4. Bold key financial figures (e.g., **£1.2m**).
+    5. Keep it professional and concise.
+    """
 
     payload = {'contents': [{'parts': [{'text': prompt}]}]}
     
@@ -132,56 +155,84 @@ def generate_glass_narrative(data):
     except Exception as e:
         return f"AI Service Unavailable: {str(e)}"
 
-# --- VIEWS ---
+# --- DASHBOARD VIEWS ---
 
 def dashboard_view():
     # 1. KPI Cards
     c1, c2, c3, c4 = st.columns(4)
     ytd = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'].sum()
-
     with c1: render_glass_metric("Total Revenue (YTD)", format_k(ytd['revenue']), "+12%", True)
     with c2: render_glass_metric("Direct Costs (COGS)", format_k(ytd['direct_cost']), "+5% (Vol)", False)
     with c3: render_glass_metric("Indirect Costs (OpEx)", format_k(ytd['indirect_cost']), "-2% (Savings)", True)
     with c4: render_glass_metric("Net Margin", f"£{ytd['net_profit']/1000:.1f}k", "28%", True)
 
-    # 2. Main Charts
+    # 2. Primary Charts (Profitability & Cost Structure)
     col_main, col_side = st.columns([2, 1])
 
     with col_main:
-        st.markdown('<div class="glass-card" style="height: 450px;">', unsafe_allow_html=True)
-        st.markdown("### Predictive Profitability Forecast")
-        
+        # Predictive Forecast Chart
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=ANNUAL_DATA[ANNUAL_DATA['type']=='Actual']['month'], y=ANNUAL_DATA[ANNUAL_DATA['type']=='Actual']['revenue'], mode='lines+markers', name='Actual Rev', line=dict(color='#ffffff', width=3)))
         fig.add_trace(go.Scatter(x=ANNUAL_DATA[ANNUAL_DATA['type']=='Forecast']['month'], y=ANNUAL_DATA[ANNUAL_DATA['type']=='Forecast']['revenue'], mode='lines', name='Forecast Rev', line=dict(color='#ffffff', width=3, dash='dot')))
         fig.add_trace(go.Scatter(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['direct_cost'] + ANNUAL_DATA['indirect_cost'], mode='lines', name='Total Costs', fill='tozeroy', line=dict(color='rgba(255, 100, 100, 0.5)', width=0), fillcolor='rgba(255, 100, 100, 0.2)'))
-
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), margin=dict(l=20, r=20, t=20, b=20), height=380, showlegend=True, legend=dict(orientation="h", y=1.1))
+        
+        fig.update_layout(title="Predictive Profitability Forecast", height=400)
+        fig = apply_glass_style(fig)
         st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_side:
-        st.markdown('<div class="glass-card" style="height: 450px;">', unsafe_allow_html=True)
-        st.markdown("### Cost Structure")
+        # Cost Structure Donut
         fig_donut = go.Figure(data=[go.Pie(labels=['Direct Costs', 'Indirect Costs', 'Net Margin'], values=[ytd['direct_cost'], ytd['indirect_cost'], ytd['net_profit']], hole=.6, marker=dict(colors=['#ff9f43', '#ff6b6b', '#1dd1a1']))])
-        fig_donut.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'), margin=dict(l=0, r=0, t=20, b=0), height=300, showlegend=True, legend=dict(orientation="h", y=0))
+        fig_donut.update_layout(title="Cost Structure (YTD)", height=400)
+        fig_donut = apply_glass_style(fig_donut)
         st.plotly_chart(fig_donut, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. AI Section
+    # 3. NEW: Waterfall Profit Bridge (The "Bridge" to Profit)
+    st.markdown("### 📉 Profitability Bridge (Variance Analysis)")
+    
+    # Mock data for the bridge
+    bridge_measures = ["relative", "relative", "relative", "total"]
+    bridge_x = ["Budget Profit", "Revenue Vol", "Cost Efficiency", "Actual Profit"]
+    bridge_text = ["+40k", "+15k", "-5k", "£50k"]
+    bridge_y = [40000, 15000, -5000, 0] # Final value calculated by Plotly if 'total'
+    
+    fig_waterfall = go.Figure(go.Waterfall(
+        name = "20", orientation = "v",
+        measure = bridge_measures,
+        x = bridge_x,
+        textposition = "outside",
+        text = bridge_text,
+        y = [40000, 15000, -5000, 0],
+        connector = {"line":{"color":"rgb(63, 63, 63)"}},
+        decreasing = {"marker":{"color":"#f87171"}}, # Red for cost increase
+        increasing = {"marker":{"color":"#4ade80"}}, # Green for profit add
+        totals = {"marker":{"color":"#ffffff"}}       # White for final
+    ))
+    
+    fig_waterfall.update_layout(title="Net Profit Bridge: Budget vs Actual (Jun)", height=350)
+    fig_waterfall = apply_glass_style(fig_waterfall)
+    st.plotly_chart(fig_waterfall, use_container_width=True)
+
+
+    # 4. AI Section (With Structured Output)
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     c_ai_head, c_ai_btn = st.columns([3,1])
     with c_ai_head:
         st.markdown("### 🤖 FinSight AI Analyst")
     with c_ai_btn:
-        if st.button("Generate Analysis"):
+        if st.button("Generate Deep Dive"):
             st.session_state['run_ai'] = True
             st.rerun()
 
     if st.session_state.get('run_ai'):
-        with st.spinner("Analyzing Cost Structures..."):
+        with st.spinner("Analyzing variances and generating board memo..."):
             analysis = generate_glass_narrative(ANNUAL_DATA)
-            st.markdown(f"""<div style="background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; border-left: 4px solid #1dd1a1;">{analysis}</div>""", unsafe_allow_html=True)
+            # We render this in a standard markdown block so formatting (bold, headers) works perfectly
+            st.markdown(f"""
+            <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 10px; border-left: 5px solid #1dd1a1;">
+            {analysis}
+            </div>
+            """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 def data_engine_view():
@@ -193,7 +244,6 @@ def data_engine_view():
     """, unsafe_allow_html=True)
 
     c1, c2 = st.columns(2)
-    
     with c1:
         st.markdown('<div class="glass-card" style="height: 300px;">', unsafe_allow_html=True)
         st.markdown("#### 🔌 System Status")
@@ -214,8 +264,6 @@ def transform_ledger(df):
     df.columns = [c.lower() for c in df.columns]
     # 2. Calculate Margins
     df['margin'] = df['rev'] - df['cogs']
-    # 3. Tag Direct vs Indirect
-    df['type'] = df['acct'].map(acct_map)
     return df
         """, language="python")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -239,7 +287,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# TABS (The return of the missing features!)
 tab1, tab2 = st.tabs(["📊 EXECUTIVE DASHBOARD", "⚙️ DATA ENGINE"])
 
 with tab1:

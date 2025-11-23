@@ -1,6 +1,6 @@
-# FINSIGHT CORE V3.4 - "THE PERFECT MERGE"
-# Combines the beautiful V2.2 Liquid Glass UI with the V3.1 Enterprise Features.
-# Fixes styling regressions and table formatting errors.
+# FINSIGHT CORE V3.5 - TRUE LIQUID GLASS RESTORATION
+# REVERTS to the V2.2 Visual Identity (Teal/Slate Gradient) to fix the "Flat" look.
+# Retains all V3.3 Enterprise Features (PPTX, Drill-Down, AI).
 
 import streamlit as st
 import pandas as pd
@@ -15,60 +15,63 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
 # --- CONFIGURATION & SETUP ---
-st.set_page_config(layout="wide", page_title="FinSight Core | Enterprise")
+st.set_page_config(layout="wide", page_title="FinSight Core | Liquid Glass")
 
-# --- CUSTOM CSS (THE V2.2 GLASS STYLE RESTORED) ---
+# --- CUSTOM CSS (THE V2.2 ORIGINAL GRADIENT RESTORED) ---
 st.markdown("""
 <style>
-    /* 1. Main Gradient Background (The Premium Look) */
+    /* 1. The V2.2 "Teal & Slate" Gradient - CRITICAL for Glass Effect */
     .stApp {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+        background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
         background-attachment: fixed;
     }
     
-    /* 2. Glass Card Style (Restored Blur & Border) */
+    /* 2. High-Contrast Glass Card */
     .glass-card {
-        background: rgba(255, 255, 255, 0.05);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.25);
         padding: 20px;
         margin-bottom: 20px;
         color: white;
         transition: transform 0.2s;
     }
     .glass-card:hover {
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
     }
 
-    /* 3. Typography (Forced White) */
+    /* 3. Typography */
     h1, h2, h3, h4, p, div, span, label, .stMarkdown, .stDataFrame {
-        color: #f1f5f9 !important;
-        font-family: 'Inter', sans-serif;
+        color: white !important;
+        font-family: 'Helvetica Neue', sans-serif;
     }
     
     /* 4. Glass Tabs */
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [data-baseweb="tab"] {
         height: 50px;
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 8px 8px 0 0;
-        color: #94a3b8;
-        font-weight: 600;
-        border: none;
+        background-color: rgba(255, 255, 255, 0.15);
+        border-radius: 10px 10px 0 0;
+        color: #e0e0e0;
+        font-weight: bold;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom: none;
     }
     .stTabs [aria-selected="true"] {
-        background-color: rgba(255, 255, 255, 0.15);
-        color: #ffffff;
-        border-top: 2px solid #2dd4bf; /* Teal Accent */
+        background-color: rgba(255, 255, 255, 0.3);
+        color: white;
+        border-top: 3px solid #4ade80; /* Bright Green Accent */
+        border-bottom: none;
     }
     
     /* 5. Metric Styling */
-    .metric-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-    .metric-value { font-size: 1.8rem; font-weight: 800; color: #ffffff; }
-    .metric-delta-pos { color: #2dd4bf; font-size: 0.9rem; font-weight: 700; }
+    .metric-label { font-size: 0.75rem; color: #e0e0e0; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 5px; font-weight: 600; }
+    .metric-value { font-size: 1.8rem; font-weight: 800; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .metric-delta-pos { color: #4ade80; font-size: 0.9rem; font-weight: 700; }
     .metric-delta-neg { color: #f87171; font-size: 0.9rem; font-weight: 700; }
     
 </style>
@@ -121,7 +124,7 @@ def render_glass_metric(label, value, delta, is_good=True):
             <div class="metric-value">{value}</div>
         </div>
         <div style="margin-top: 12px;">
-            <span class="{delta_class}">{arrow} {delta}</span> <span style="color: #94a3b8; font-size: 0.8rem; margin-left: 8px;">vs Budget</span>
+            <span class="{delta_class}">{arrow} {delta}</span> <span style="color: #e0e0e0; font-size: 0.8rem; margin-left: 8px;">vs Budget</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -130,10 +133,10 @@ def apply_glass_style(fig):
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#f1f5f9', family="Inter"),
+        font=dict(color='white', family="Helvetica Neue"),
         margin=dict(l=20, r=20, t=40, b=20),
-        xaxis=dict(showgrid=False, color='#94a3b8'),
-        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)', color='#94a3b8'),
+        xaxis=dict(showgrid=False, color='#e0e0e0'),
+        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', color='#e0e0e0'),
         hovermode="x unified"
     )
     return fig
@@ -142,11 +145,11 @@ def apply_glass_style(fig):
 def create_pro_pptx(metrics, ai_text):
     prs = Presentation()
     
-    # Colors
-    BG_COLOR = RGBColor(30, 41, 59)   # Dark Slate
-    ACCENT = RGBColor(45, 212, 191)   # Teal
-    TEXT_MAIN = RGBColor(241, 245, 249)
-    ROW_ALT = RGBColor(51, 65, 85)
+    # Colors: Dark Slate (Match new BG) & Teal Accent
+    BG_COLOR = RGBColor(44, 62, 80)   
+    ACCENT = RGBColor(76, 161, 175)   
+    TEXT_MAIN = RGBColor(255, 255, 255)
+    ROW_ALT = RGBColor(60, 80, 100)
 
     def set_bg(slide):
         bg = slide.background
@@ -160,6 +163,7 @@ def create_pro_pptx(metrics, ai_text):
     title = slide.shapes.title
     title.text = "FinSight Executive Summary"
     title.text_frame.paragraphs[0].font.color.rgb = TEXT_MAIN
+    title.text_frame.paragraphs[0].font.bold = True
     
     sub = slide.placeholders[1]
     sub.text = "Automated Board Pack | June 2024"
@@ -176,7 +180,6 @@ def create_pro_pptx(metrics, ai_text):
     left, top, width, height = Inches(1), Inches(2), Inches(8), Inches(3.5)
     table = slide.shapes.add_table(rows, cols, left, top, width, height).table
 
-    # Headers
     headers = ['Metric', 'Value', 'Variance']
     for i, h in enumerate(headers):
         cell = table.cell(0, i)
@@ -241,6 +244,7 @@ def generate_ai_narrative():
 
 # --- DASHBOARD ---
 def dashboard_view():
+    # 1. METRICS STRIP
     ytd = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'].sum()
     metrics = {
         'rev_val': format_k(ytd['revenue']), 'rev_delta': "+3.1%",
@@ -265,8 +269,8 @@ def dashboard_view():
     with c_main:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         fig = go.Figure()
-        fig.add_trace(go.Bar(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['revenue'], name='Revenue', marker_color='#0ea5e9', opacity=0.8))
-        fig.add_trace(go.Scatter(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['operating_profit'], name='Op Profit', line=dict(color='#2dd4bf', width=3), yaxis='y2'))
+        fig.add_trace(go.Bar(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['revenue'], name='Revenue', marker_color='#ffffff', opacity=0.9)) # White Bars for V2 look
+        fig.add_trace(go.Scatter(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['operating_profit'], name='Op Profit', line=dict(color='#4ade80', width=3), yaxis='y2')) # Bright Green line
         fig.update_layout(title="Revenue & Profit Trend", height=380, legend=dict(orientation="h", y=1.1), yaxis2=dict(overlaying='y', side='right', showgrid=False))
         fig = apply_glass_style(fig)
         st.plotly_chart(fig, use_container_width=True)
@@ -278,14 +282,14 @@ def dashboard_view():
             name = "20", orientation = "v", measure = ["relative", "relative", "relative", "total"],
             x = ["Budget", "Vol", "Cost", "Actual"], textposition = "outside", text = ["+10k", "+5k", "-2k", "£68k"],
             y = [55000, 15000, -2000, 0], connector = {"line":{"color":"white"}},
-            decreasing = {"marker":{"color":"#f87171"}}, increasing = {"marker":{"color":"#2dd4bf"}}, totals = {"marker":{"color":"#94a3b8"}}
+            decreasing = {"marker":{"color":"#f87171"}}, increasing = {"marker":{"color":"#4ade80"}}, totals = {"marker":{"color":"#ffffff"}}
         ))
         fig_bridge.update_layout(title="Profit Bridge (Jun)", height=380)
         fig_bridge = apply_glass_style(fig_bridge)
         st.plotly_chart(fig_bridge, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # DRILL DOWN (FIXED)
+    # DRILL DOWN
     st.markdown("### 🔍 Multi-Layer Drill Down")
     col1, col2 = st.columns([1, 3])
     with col1:
@@ -296,7 +300,7 @@ def dashboard_view():
     with col2:
         drill_df = DRILL_DATA.copy()
         drill_df['Variance'] = drill_df['Actual'] - drill_df['Budget']
-        # FIX: Explicitly select only numeric columns for formatting to prevent ValueError
+        # Formatting Fix
         st.dataframe(drill_df.style.format("{:,.0f}", subset=['Actual', 'Budget', 'Variance']), use_container_width=True)
 
     # AI & EXPORT
@@ -308,7 +312,7 @@ def dashboard_view():
         if st.button("⚡ Run Commentary Engine"):
             with st.spinner("Analyzing..."):
                 st.session_state['ai_analysis'] = generate_ai_narrative()
-        st.markdown(f"""<div style="background: rgba(45, 212, 191, 0.1); padding: 20px; border-radius: 12px; border-left: 4px solid #2dd4bf;">{st.session_state['ai_analysis']}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 12px; border-left: 4px solid #4ade80;">{st.session_state['ai_analysis']}</div>""", unsafe_allow_html=True)
 
     with c_exp:
         st.markdown('<div class="glass-card" style="text-align: center;">', unsafe_allow_html=True)
@@ -328,10 +332,10 @@ st.markdown("""
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
         <h1 style="margin:0; font-size: 2.8rem; font-weight: 800; letter-spacing: -1px;">FinSight Core</h1>
-        <p style="color: #94a3b8; margin:0; font-size: 1.1rem;">Enterprise Edition • Live Connection</p>
+        <p style="color: #e0e0e0; margin:0; font-size: 1.1rem;">Enterprise Edition • Live Connection</p>
     </div>
     <div class="glass-card" style="padding: 12px 24px; margin:0;">
-        <span style="color: #2dd4bf; font-weight: 600;">● Connected: NetSuite OneWorld</span>
+        <span style="color: #4ade80; font-weight: 600;">● Connected: NetSuite OneWorld</span>
     </div>
 </div>
 """, unsafe_allow_html=True)

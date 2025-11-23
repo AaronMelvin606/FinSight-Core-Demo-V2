@@ -1,6 +1,5 @@
-# FINSIGHT CORE V2.2 - "TRUE GLASS" & ADVANCED ANALYTICS
-# Fixes the 'Chart Below Box' issue by applying Glassmorphism directly to Plotly figures.
-# Adds Waterfall Charts and Structured AI Prompts.
+# FINSIGHT CORE V3.0 - ENTERPRISE EDITION
+# Includes: PPTX Export, Deep Dive Drill-Downs, Scenario Planning, and Expanded KPIs.
 
 import streamlit as st
 import pandas as pd
@@ -9,53 +8,63 @@ import requests
 import json
 import plotly.graph_objects as go
 import plotly.express as px
+from io import BytesIO
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.dml.color import RGBColor
 
 # --- CONFIGURATION & SETUP ---
-st.set_page_config(layout="wide", page_title="FinSight Core | Liquid Glass")
+st.set_page_config(layout="wide", page_title="FinSight Core | Enterprise")
 
 # --- CUSTOM CSS ---
-# We keep the CSS for the text-based cards, but charts will handle their own styling now.
 st.markdown("""
 <style>
     /* 1. Main Gradient Background */
     .stApp {
-        background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         background-attachment: fixed;
     }
     
-    /* 2. Text-Only Glass Card (For KPIs & AI) */
+    /* 2. Glass Card Style */
     .glass-card {
-        background: rgba(255, 255, 255, 0.1);
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        backdrop-filter: blur(4px);
-        -webkit-backdrop-filter: blur(4px);
-        border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
         padding: 20px;
         margin-bottom: 20px;
         color: white;
     }
 
-    /* 3. Global Text Styling */
-    h1, h2, h3, h4, p, div, span, label {
-        color: white !important;
-        font-family: 'Helvetica Neue', sans-serif;
+    /* 3. Text Styling */
+    h1, h2, h3, h4, p, div, span, label, .stMarkdown {
+        color: #e2e8f0 !important;
+        font-family: 'Inter', sans-serif;
     }
     
     /* 4. Tab Styling */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: rgba(255, 255, 255, 0.1);
-        border-radius: 10px 10px 0 0;
-        color: white;
-        font-weight: bold;
+        height: 45px;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 8px 8px 0 0;
+        color: #94a3b8;
+        font-weight: 600;
+        border: none;
     }
     .stTabs [aria-selected="true"] {
-        background-color: rgba(255, 255, 255, 0.25);
-        border-bottom: 2px solid #4ade80;
+        background-color: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        border-bottom: 2px solid #38bdf8;
     }
+    
+    /* 5. Metric Styling */
+    .metric-label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric-value { font-size: 1.8rem; font-weight: 700; color: #ffffff; }
+    .metric-delta-pos { color: #4ade80; font-size: 0.9rem; font-weight: 600; }
+    .metric-delta-neg { color: #f87171; font-size: 0.9rem; font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -63,85 +72,158 @@ st.markdown("""
 GEMINI_MODEL = 'gemini-2.5-flash-preview-09-2025'
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
-# --- MOCK DATA ---
-ANNUAL_DATA = pd.DataFrame([
-    # Actuals (Jan-Jun)
-    {'month': 'Jan', 'type': 'Actual', 'revenue': 120000, 'direct_cost': 48000, 'indirect_cost': 40000},
-    {'month': 'Feb', 'type': 'Actual', 'revenue': 125000, 'direct_cost': 50000, 'indirect_cost': 41000},
-    {'month': 'Mar', 'type': 'Actual', 'revenue': 110000, 'direct_cost': 44000, 'indirect_cost': 42000},
-    {'month': 'Apr', 'type': 'Actual', 'revenue': 140000, 'direct_cost': 56000, 'indirect_cost': 43000},
-    {'month': 'May', 'type': 'Actual', 'revenue': 135000, 'direct_cost': 54000, 'indirect_cost': 42000},
-    {'month': 'Jun', 'type': 'Actual', 'revenue': 155000, 'direct_cost': 62000, 'indirect_cost': 45000},
-    # Forecasts (Jul-Dec)
-    {'month': 'Jul', 'type': 'Forecast', 'revenue': 145000, 'direct_cost': 58000, 'indirect_cost': 44000},
-    {'month': 'Aug', 'type': 'Forecast', 'revenue': 148000, 'direct_cost': 59200, 'indirect_cost': 44500},
-    {'month': 'Sep', 'type': 'Forecast', 'revenue': 160000, 'direct_cost': 64000, 'indirect_cost': 46000},
-    {'month': 'Oct', 'type': 'Forecast', 'revenue': 158000, 'direct_cost': 63200, 'indirect_cost': 45500},
-    {'month': 'Nov', 'type': 'Forecast', 'revenue': 165000, 'direct_cost': 66000, 'indirect_cost': 47000},
-    {'month': 'Dec', 'type': 'Forecast', 'revenue': 180000, 'direct_cost': 72000, 'indirect_cost': 48000},
-])
+# --- EXPANDED MOCK DATA ---
+def generate_mock_data():
+    # Base Monthly Data
+    months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    
+    data = []
+    for i, m in enumerate(months):
+        is_actual = i < 6
+        # Base values with some randomness
+        rev = 120000 + (i * 5000) + np.random.randint(-5000, 5000)
+        direct = rev * 0.4 + np.random.randint(-2000, 2000)
+        indirect = 40000 + (i * 1000) + np.random.randint(-1000, 1000)
+        cash_flow = (rev - direct - indirect) * 0.9 # Lag
+        
+        data.append({
+            'month': m,
+            'type': 'Actual' if is_actual else 'Forecast',
+            'revenue': rev,
+            'direct_cost': direct,
+            'indirect_cost': indirect,
+            'cash_flow': cash_flow,
+            'headcount': 120 + (i * 2),
+            'budget_revenue': 120000 + (i * 4000),
+            'budget_direct': (120000 + (i * 4000)) * 0.38,
+            'budget_indirect': 42000
+        })
+    return pd.DataFrame(data)
 
+ANNUAL_DATA = generate_mock_data()
 ANNUAL_DATA['gross_margin'] = ANNUAL_DATA['revenue'] - ANNUAL_DATA['direct_cost']
-ANNUAL_DATA['net_profit'] = ANNUAL_DATA['gross_margin'] - ANNUAL_DATA['indirect_cost']
+ANNUAL_DATA['opex'] = ANNUAL_DATA['indirect_cost']
+ANNUAL_DATA['operating_profit'] = ANNUAL_DATA['gross_margin'] - ANNUAL_DATA['opex']
+ANNUAL_DATA['operating_margin_pct'] = ANNUAL_DATA['operating_profit'] / ANNUAL_DATA['revenue']
+
+# Drill Down Data (Mock)
+DRILL_DATA = pd.DataFrame([
+    {'Category': 'Revenue', 'Sub-Category': 'Product A', 'Cost Centre': 'Sales-US', 'Actual': 450000, 'Budget': 420000},
+    {'Category': 'Revenue', 'Sub-Category': 'Product B', 'Cost Centre': 'Sales-EU', 'Actual': 320000, 'Budget': 350000},
+    {'Category': 'COGS', 'Sub-Category': 'Materials', 'Cost Centre': 'Plant-1', 'Actual': 200000, 'Budget': 190000},
+    {'Category': 'COGS', 'Sub-Category': 'Labor', 'Cost Centre': 'Plant-1', 'Actual': 150000, 'Budget': 145000},
+    {'Category': 'OPEX', 'Sub-Category': 'Marketing', 'Cost Centre': 'Mktg-Global', 'Actual': 80000, 'Budget': 70000},
+    {'Category': 'OPEX', 'Sub-Category': 'R&D', 'Cost Centre': 'Eng-HQ', 'Actual': 120000, 'Budget': 120000},
+])
 
 # --- HELPER FUNCTIONS ---
 
 def format_k(val):
     return f"£{val/1000:.1f}k"
 
-def render_glass_metric(label, value, subvalue, is_positive=True):
-    arrow = "↑" if is_positive else "↓"
-    color = "#4ade80" if is_positive else "#f87171"
+def format_pct(val):
+    return f"{val*100:.1f}%"
+
+def render_glass_metric(label, value, delta, is_good=True):
+    delta_class = "metric-delta-pos" if is_good else "metric-delta-neg"
+    arrow = "▲" if is_good else "▼"
     st.markdown(f"""
-    <div class="glass-card">
-        <div style="font-size: 12px; text-transform: uppercase; opacity: 0.8; margin-bottom: 5px;">{label}</div>
-        <div style="font-size: 28px; font-weight: bold; margin-bottom: 5px;">{value}</div>
-        <div style="font-size: 14px; color: {color};">
-            {arrow} {subvalue} <span style="color: white; opacity: 0.6;">vs Target</span>
-        </div>
+    <div class="glass-card" style="padding: 15px;">
+        <div class="metric-label">{label}</div>
+        <div class="metric-value">{value}</div>
+        <div class="{delta_class}">{arrow} {delta} <span style="color: #64748b; font-size: 0.7rem; font-weight: 400;">vs Budget</span></div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- CHARTING FUNCTIONS (THE FIX) ---
-# Instead of wrapping charts in HTML, we apply the 'Glass' style INSIDE the chart config.
-
 def apply_glass_style(fig):
-    """Applies the transparent glass look to any Plotly chart."""
     fig.update_layout(
-        paper_bgcolor='rgba(255, 255, 255, 0.1)',  # Semi-transparent background
-        plot_bgcolor='rgba(0,0,0,0)',              # Fully transparent plot area
-        font=dict(color='white'),
-        margin=dict(l=20, r=20, t=40, b=20),
-        # Add a subtle border/shadow effect via Plotly shapes if strictly needed, 
-        # but usually just the bg color is enough for the effect.
+        paper_bgcolor='rgba(255, 255, 255, 0.0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#e2e8f0'),
+        margin=dict(l=20, r=20, t=30, b=20),
+        xaxis=dict(showgrid=False, color='#94a3b8'),
+        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', color='#94a3b8')
     )
     return fig
 
+# --- PPTX GENERATOR ---
+def create_presentation(metrics, ai_text):
+    prs = Presentation()
+    
+    # Slide 1: Title
+    slide = prs.slides.add_slide(prs.slide_layouts[0])
+    title = slide.shapes.title
+    subtitle = slide.placeholders[1]
+    title.text = "FinSight Executive Summary"
+    subtitle.text = "Automated Board Pack | Period: June 2024"
+    
+    # Slide 2: AI Commentary
+    slide = prs.slides.add_slide(prs.slide_layouts[1])
+    title = slide.shapes.title
+    title.text = "AI-Driven Performance Insights"
+    body = slide.placeholders[1]
+    body.text = ai_text.replace('**', '').replace('###', '') # Simple cleanup
+    
+    # Slide 3: Key Financials Table
+    slide = prs.slides.add_slide(prs.slide_layouts[5]) # Blank
+    title = slide.shapes.title
+    title.text = "Financial Key Performance Indicators"
+    
+    # Add Table
+    rows, cols = 5, 3
+    left = Inches(1)
+    top = Inches(2)
+    width = Inches(8)
+    height = Inches(3)
+    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+    
+    # Headers
+    headers = ['Metric', 'Value', 'Status']
+    for i, h in enumerate(headers):
+        table.cell(0, i).text = h
+    
+    # Data (Simplified)
+    data = [
+        ['Revenue (YTD)', metrics['rev_val'], metrics['rev_delta']],
+        ['Gross Margin', metrics['gm_val'], metrics['gm_delta']],
+        ['Operating Profit', metrics['op_val'], metrics['op_delta']],
+        ['Cash Flow', metrics['cf_val'], 'Healthy']
+    ]
+    
+    for row_idx, row_data in enumerate(data, start=1):
+        for col_idx, val in enumerate(row_data):
+            table.cell(row_idx, col_idx).text = str(val)
+
+    binary_output = BytesIO()
+    prs.save(binary_output)
+    binary_output.seek(0)
+    return binary_output
+
 # --- AI NARRATIVE ---
-def generate_glass_narrative(data):
+def generate_ai_narrative():
     try:
         api_key = st.secrets["GEMINI_API_KEY"]
     except KeyError:
-        return "⚠️ API Key Missing. Please add it to Streamlit Secrets."
+        return "⚠️ API Key Missing in Streamlit Secrets."
 
-    current_month = data[data['type'] == 'Actual'].iloc[-1]
-    fy_rev = data['revenue'].sum()
-    fy_net = data['net_profit'].sum()
+    # Context with more data
+    ytd = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'].sum()
+    budget_rev = ytd['budget_revenue']
     
     context = f"""
-    Current Month (Jun): Rev {format_k(current_month['revenue'])}, Direct Cost {format_k(current_month['direct_cost'])}, Indirect {format_k(current_month['indirect_cost'])}.
-    Full Year Forecast: Rev {format_k(fy_rev)}, Net Profit {format_k(fy_net)}.
+    YTD Revenue: {format_k(ytd['revenue'])} (Budget: {format_k(budget_rev)}).
+    YTD Op Profit: {format_k(ytd['operating_profit'])}.
+    Cash Flow: {format_k(ytd['cash_flow'])}.
+    Headcount: {int(ANNUAL_DATA.iloc[5]['headcount'])}.
     """
     
-    # UPDATED PROMPT FOR STRUCTURE
-    prompt = f"""You are a CFO's AI Assistant. Write a structured executive memo based on: {context}.
-    
-    Structure requirements:
-    1. Use Markdown Header 3 (###) for section titles.
-    2. Sections: 'Performance Highlights', 'Cost Analysis', 'Strategic Outlook'.
-    3. Use bullet points for details.
-    4. Bold key financial figures (e.g., **£1.2m**).
-    5. Keep it professional and concise.
+    prompt = f"""You are a Group CFO. Write a strict, board-level executive summary based on: {context}.
+    Structure:
+    1. **Executive Headline**: One punchy sentence.
+    2. **Performance Drivers**: Bullet points on Revenue and Margin.
+    3. **Risk Radar**: Cash or Headcount risks.
+    4. **Strategic Recommendation**: One forward-looking action.
+    Keep it under 150 words. Use Markdown.
     """
 
     payload = {'contents': [{'parts': [{'text': prompt}]}]}
@@ -155,139 +237,196 @@ def generate_glass_narrative(data):
     except Exception as e:
         return f"AI Service Unavailable: {str(e)}"
 
-# --- DASHBOARD VIEWS ---
+# --- VIEWS ---
 
 def dashboard_view():
-    # 1. KPI Cards
-    c1, c2, c3, c4 = st.columns(4)
-    ytd = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'].sum()
-    with c1: render_glass_metric("Total Revenue (YTD)", format_k(ytd['revenue']), "+12%", True)
-    with c2: render_glass_metric("Direct Costs (COGS)", format_k(ytd['direct_cost']), "+5% (Vol)", False)
-    with c3: render_glass_metric("Indirect Costs (OpEx)", format_k(ytd['indirect_cost']), "-2% (Savings)", True)
-    with c4: render_glass_metric("Net Margin", f"£{ytd['net_profit']/1000:.1f}k", "28%", True)
+    
+    # 1. EXECUTIVE SUMMARY STRIP (KPIs)
+    # Calc YTD
+    ytd_act = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'].sum()
+    ytd_bud = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'][['budget_revenue', 'budget_direct', 'budget_indirect']].sum()
+    
+    # Vars
+    rev_var = (ytd_act['revenue'] - ytd_bud['budget_revenue']) / ytd_bud['budget_revenue']
+    gm_act = ytd_act['revenue'] - ytd_act['direct_cost']
+    gm_bud = ytd_bud['budget_revenue'] - ytd_bud['budget_direct']
+    gm_var = (gm_act - gm_bud) / gm_bud
+    op_act = ytd_act['operating_profit']
+    op_bud = gm_bud - ytd_bud['budget_indirect']
+    op_var = (op_act - op_bud) / op_bud
+    
+    # Store for PPTX
+    metrics_for_ppt = {
+        'rev_val': format_k(ytd_act['revenue']), 'rev_delta': format_pct(rev_var),
+        'gm_val': format_k(gm_act), 'gm_delta': format_pct(gm_var),
+        'op_val': format_k(op_act), 'op_delta': format_pct(op_var),
+        'cf_val': format_k(ytd_act['cash_flow'])
+    }
 
-    # 2. Primary Charts (Profitability & Cost Structure)
+    st.markdown("### 🚀 Enterprise Performance")
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    with c1: render_glass_metric("Revenue", format_k(ytd_act['revenue']), format_pct(rev_var), rev_var > 0)
+    with c2: render_glass_metric("Gross Margin", format_k(gm_act), format_pct(gm_var), gm_var > 0)
+    with c3: render_glass_metric("Op Margin", format_pct(ytd_act['operating_margin_pct']/6), format_pct(op_var), op_var > 0) # Avg
+    with c4: render_glass_metric("OPEX", format_k(ytd_act['opex']), "+2.1%", False) # Mock delta
+    with c5: render_glass_metric("Cash Flow", format_k(ytd_act['cash_flow']), "+5.4%", True)
+    with c6: render_glass_metric("Accuracy", "94.2%", "-1.1%", False)
+
+    # 2. SCENARIO SIMULATOR (Interactive)
+    with st.expander("🎛️ Scenario Simulation & Sensitivity Analysis", expanded=False):
+        sc_col1, sc_col2 = st.columns([1, 3])
+        with sc_col1:
+            st.markdown("#### Assumptions")
+            rev_growth = st.slider("Revenue Growth Impact", -20, 20, 0, format="%d%%")
+            cogs_inf = st.slider("COGS Inflation", 0, 10, 0, format="%d%%")
+        with sc_col2:
+            # Apply scenario
+            scenario_data = ANNUAL_DATA.copy()
+            scenario_data['revenue'] = scenario_data['revenue'] * (1 + rev_growth/100)
+            scenario_data['direct_cost'] = scenario_data['direct_cost'] * (1 + cogs_inf/100)
+            scenario_data['gross_margin'] = scenario_data['revenue'] - scenario_data['direct_cost']
+            
+            fig_sc = go.Figure()
+            fig_sc.add_trace(go.Bar(x=scenario_data['month'], y=scenario_data['gross_margin'], name='Projected GM', marker_color='#38bdf8'))
+            fig_sc.add_trace(go.Scatter(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['gross_margin'], name='Baseline GM', line=dict(color='white', dash='dot')))
+            fig_sc = apply_glass_style(fig_sc)
+            fig_sc.update_layout(title="Scenario Impact: Gross Margin", height=300)
+            st.plotly_chart(fig_sc, use_container_width=True)
+
+    # 3. MAIN CHARTS (Forecast & Waterfall)
     col_main, col_side = st.columns([2, 1])
 
     with col_main:
-        # Predictive Forecast Chart
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        # Combined Chart
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=ANNUAL_DATA[ANNUAL_DATA['type']=='Actual']['month'], y=ANNUAL_DATA[ANNUAL_DATA['type']=='Actual']['revenue'], mode='lines+markers', name='Actual Rev', line=dict(color='#ffffff', width=3)))
-        fig.add_trace(go.Scatter(x=ANNUAL_DATA[ANNUAL_DATA['type']=='Forecast']['month'], y=ANNUAL_DATA[ANNUAL_DATA['type']=='Forecast']['revenue'], mode='lines', name='Forecast Rev', line=dict(color='#ffffff', width=3, dash='dot')))
-        fig.add_trace(go.Scatter(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['direct_cost'] + ANNUAL_DATA['indirect_cost'], mode='lines', name='Total Costs', fill='tozeroy', line=dict(color='rgba(255, 100, 100, 0.5)', width=0), fillcolor='rgba(255, 100, 100, 0.2)'))
+        fig.add_trace(go.Bar(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['revenue'], name='Revenue', marker_color='#38bdf8', opacity=0.6))
+        fig.add_trace(go.Scatter(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['operating_profit'], name='Op Profit', line=dict(color='#4ade80', width=3), yaxis='y2'))
         
-        fig.update_layout(title="Predictive Profitability Forecast", height=400)
+        fig.update_layout(
+            title="Revenue & Profitability Trend (YTD + Forecast)",
+            yaxis=dict(title="Revenue", showgrid=False),
+            yaxis2=dict(title="Profit", overlaying='y', side='right', showgrid=False),
+            legend=dict(orientation="h", y=1.1),
+            height=350
+        )
         fig = apply_glass_style(fig)
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_side:
-        # Cost Structure Donut
-        fig_donut = go.Figure(data=[go.Pie(labels=['Direct Costs', 'Indirect Costs', 'Net Margin'], values=[ytd['direct_cost'], ytd['indirect_cost'], ytd['net_profit']], hole=.6, marker=dict(colors=['#ff9f43', '#ff6b6b', '#1dd1a1']))])
-        fig_donut.update_layout(title="Cost Structure (YTD)", height=400)
-        fig_donut = apply_glass_style(fig_donut)
-        st.plotly_chart(fig_donut, use_container_width=True)
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        # Profit Bridge
+        fig_bridge = go.Figure(go.Waterfall(
+            name = "20", orientation = "v",
+            measure = ["relative", "relative", "relative", "total"],
+            x = ["Budget Profit", "Vol Variance", "Cost Var", "Actual Profit"],
+            textposition = "outside",
+            text = ["+10k", "+5k", "-2k", "£68k"], # Mock calc for demo
+            y = [55000, 15000, -2000, 0],
+            connector = {"line":{"color":"white"}},
+            decreasing = {"marker":{"color":"#f87171"}},
+            increasing = {"marker":{"color":"#4ade80"}},
+            totals = {"marker":{"color":"#94a3b8"}}
+        ))
+        fig_bridge.update_layout(title="Profitability Bridge (June)", height=350)
+        fig_bridge = apply_glass_style(fig_bridge)
+        st.plotly_chart(fig_bridge, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. NEW: Waterfall Profit Bridge (The "Bridge" to Profit)
-    st.markdown("### 📉 Profitability Bridge (Variance Analysis)")
+    # 4. DEEP DIVE DRILL-DOWNS
+    st.markdown("### 🔍 Multi-Layer Drill Down")
+    col_d1, col_d2 = st.columns([1, 2])
     
-    # Mock data for the bridge
-    bridge_measures = ["relative", "relative", "relative", "total"]
-    bridge_x = ["Budget Profit", "Revenue Vol", "Cost Efficiency", "Actual Profit"]
-    bridge_text = ["+40k", "+15k", "-5k", "£50k"]
-    bridge_y = [40000, 15000, -5000, 0] # Final value calculated by Plotly if 'total'
+    with col_d1:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        level = st.selectbox("Select Hierarchy Level", ["Category", "Sub-Category", "Cost Centre", "Account"])
+        selected_cat = st.selectbox("Filter By", DRILL_DATA['Category'].unique())
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_d2:
+        filtered_df = DRILL_DATA[DRILL_DATA['Category'] == selected_cat]
+        filtered_df['Variance'] = filtered_df['Actual'] - filtered_df['Budget']
+        
+        # Styled Table
+        st.dataframe(
+            filtered_df.style.format("{:,.0f}", subset=['Actual', 'Budget', 'Variance'])
+            .background_gradient(cmap='RdYlGn', subset=['Variance'], vmin=-50000, vmax=50000),
+            use_container_width=True
+        )
+
+    # 5. AI & EXPORT (The "CFO" Close)
+    st.markdown("### 🤖 Strategic Intelligence & Reporting")
     
-    fig_waterfall = go.Figure(go.Waterfall(
-        name = "20", orientation = "v",
-        measure = bridge_measures,
-        x = bridge_x,
-        textposition = "outside",
-        text = bridge_text,
-        y = [40000, 15000, -5000, 0],
-        connector = {"line":{"color":"rgb(63, 63, 63)"}},
-        decreasing = {"marker":{"color":"#f87171"}}, # Red for cost increase
-        increasing = {"marker":{"color":"#4ade80"}}, # Green for profit add
-        totals = {"marker":{"color":"#ffffff"}}       # White for final
-    ))
+    col_ai, col_export = st.columns([3, 1])
     
-    fig_waterfall.update_layout(title="Net Profit Bridge: Budget vs Actual (Jun)", height=350)
-    fig_waterfall = apply_glass_style(fig_waterfall)
-    st.plotly_chart(fig_waterfall, use_container_width=True)
+    with col_ai:
+        if 'ai_analysis' not in st.session_state:
+            st.session_state['ai_analysis'] = "Click 'Generate' to run the Commentary Engine."
+            
+        if st.button("⚡ Run Commentary Engine"):
+            with st.spinner("Aggregating variances and writing board memo..."):
+                st.session_state['ai_analysis'] = generate_ai_narrative()
+        
+        st.markdown(f"""
+        <div style="background: rgba(56, 189, 248, 0.1); padding: 20px; border-radius: 10px; border-left: 4px solid #38bdf8;">
+            {st.session_state['ai_analysis']}
+        </div>
+        """, unsafe_allow_html=True)
 
-
-    # 4. AI Section (With Structured Output)
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    c_ai_head, c_ai_btn = st.columns([3,1])
-    with c_ai_head:
-        st.markdown("### 🤖 FinSight AI Analyst")
-    with c_ai_btn:
-        if st.button("Generate Deep Dive"):
-            st.session_state['run_ai'] = True
-            st.rerun()
-
-    if st.session_state.get('run_ai'):
-        with st.spinner("Analyzing variances and generating board memo..."):
-            analysis = generate_glass_narrative(ANNUAL_DATA)
-            # We render this in a standard markdown block so formatting (bold, headers) works perfectly
-            st.markdown(f"""
-            <div style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 10px; border-left: 5px solid #1dd1a1;">
-            {analysis}
-            </div>
-            """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col_export:
+        st.markdown('<div class="glass-card" style="text-align: center;">', unsafe_allow_html=True)
+        st.markdown("#### Export Pack")
+        
+        # PPTX Generation Logic
+        if st.session_state['ai_analysis'] != "Click 'Generate' to run the Commentary Engine.":
+            pptx_file = create_presentation(metrics_for_ppt, st.session_state['ai_analysis'])
+            
+            st.download_button(
+                label="📥 Download Slides (.pptx)",
+                data=pptx_file,
+                file_name="FinSight_Board_Pack_Jun24.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                type="primary"
+            )
+            st.caption("Compatible with Google Slides")
+        else:
+            st.warning("Run AI Analysis first to enable export.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def data_engine_view():
-    st.markdown("""
-    <div class="glass-card">
-        <h3>⚙️ Data Engine & Transformation Layer</h3>
-        <p style="opacity:0.8">This is the client-owned backend where raw ERP data is cleaned and structured.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
+    st.markdown("### ⚙️ Data Engine & Governance")
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown('<div class="glass-card" style="height: 300px;">', unsafe_allow_html=True)
-        st.markdown("#### 🔌 System Status")
-        st.markdown("✅ **NetSuite Connector:** Active (Latency: 45ms)")
-        st.markdown("✅ **Transformation Pipeline:** Healthy")
-        st.markdown("✅ **Last Sync:** Today, 09:41 AM")
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.progress(100)
-        st.caption("Sync Completeness")
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("#### 🔌 Pipeline Health")
+        st.success("NetSuite Connector: ACTIVE (45ms)")
+        st.success("Data Warehouse: SYNCED (09:41 AM)")
+        st.info("Anomaly Detection: RUNNING")
         st.markdown('</div>', unsafe_allow_html=True)
-
     with c2:
-        st.markdown('<div class="glass-card" style="height: 300px;">', unsafe_allow_html=True)
-        st.markdown("#### 🛠️ Transformation Rules (Python)")
-        st.code("""
-def transform_ledger(df):
-    # 1. Standardize Headers
-    df.columns = [c.lower() for c in df.columns]
-    # 2. Calculate Margins
-    df['margin'] = df['rev'] - df['cogs']
-    return df
-        """, language="python")
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown("#### 🛡️ Version Control")
+        st.markdown("**Current Version:** v3.4.1 (Prod)")
+        st.markdown("**Last Audit:** User 'Admin' approved forecast adjust.")
         st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown("#### 📄 Live Data Feed (Sample)")
+        
     st.dataframe(ANNUAL_DATA.head(), use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- MAIN LAYOUT ---
-
 st.markdown("""
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
     <div>
-        <h1 style="margin:0; font-size: 2.5rem;">FinSight Core</h1>
-        <p style="opacity: 0.8;">Liquid Glass Interface • Live Connection</p>
+        <h1 style="margin:0; font-size: 2.2rem; background: -webkit-linear-gradient(#fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">FinSight Core</h1>
+        <p style="color: #64748b; margin:0;">Enterprise Edition • Live Connection</p>
     </div>
-    <div class="glass-card" style="padding: 10px 20px; margin:0;">
-        User: Aaron M. • Admin
+    <div style="text-align: right;">
+        <span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; padding: 5px 10px; border-radius: 15px; font-size: 0.8rem; font-weight: 600;">Connected: NetSuite OneWorld</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2 = st.tabs(["📊 EXECUTIVE DASHBOARD", "⚙️ DATA ENGINE"])
+tab1, tab2 = st.tabs(["Executive Dashboard", "Data Engine"])
 
 with tab1:
     dashboard_view()

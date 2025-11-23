@@ -4,3 +4,5 @@ requests
 numpy
 plotly
 python-pptx
+matplotlib
+jinja2

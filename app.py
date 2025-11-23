@@ -1,5 +1,6 @@
-# FINSIGHT CORE V3.3 - ULTIMATE EDITION
-# Features: Stronger Glassmorphism, Professional Dark Mode PPTX, Enterprise KPIs.
+# FINSIGHT CORE V3.4 - "THE PERFECT MERGE"
+# Combines the beautiful V2.2 Liquid Glass UI with the V3.1 Enterprise Features.
+# Fixes styling regressions and table formatting errors.
 
 import streamlit as st
 import pandas as pd
@@ -16,44 +17,47 @@ from pptx.enum.text import PP_ALIGN
 # --- CONFIGURATION & SETUP ---
 st.set_page_config(layout="wide", page_title="FinSight Core | Enterprise")
 
-# --- CUSTOM CSS (STRONG GLASS) ---
+# --- CUSTOM CSS (THE V2.2 GLASS STYLE RESTORED) ---
 st.markdown("""
 <style>
-    /* 1. Main Gradient Background */
+    /* 1. Main Gradient Background (The Premium Look) */
     .stApp {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
         background-attachment: fixed;
     }
     
-    /* 2. Strong Glass Card */
+    /* 2. Glass Card Style (Restored Blur & Border) */
     .glass-card {
-        background: rgba(255, 255, 255, 0.07);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        padding: 24px;
-        margin-bottom: 24px;
+        background: rgba(255, 255, 255, 0.05);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        margin-bottom: 20px;
         color: white;
+        transition: transform 0.2s;
+    }
+    .glass-card:hover {
+        border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
-    /* 3. Typography */
-    h1, h2, h3, h4, p, div, span, label, .stMarkdown {
+    /* 3. Typography (Forced White) */
+    h1, h2, h3, h4, p, div, span, label, .stMarkdown, .stDataFrame {
         color: #f1f5f9 !important;
         font-family: 'Inter', sans-serif;
     }
     
-    /* 4. Clean Tabs */
-    .stTabs [data-baseweb="tab-list"] { gap: 12px; }
+    /* 4. Glass Tabs */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
-        height: 55px;
+        height: 50px;
         background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 10px 10px 0 0;
+        border-radius: 8px 8px 0 0;
         color: #94a3b8;
         font-weight: 600;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-bottom: none;
+        border: none;
     }
     .stTabs [aria-selected="true"] {
         background-color: rgba(255, 255, 255, 0.15);
@@ -62,10 +66,10 @@ st.markdown("""
     }
     
     /* 5. Metric Styling */
-    .metric-label { font-size: 0.85rem; color: #cbd5e1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; font-weight: 600; }
-    .metric-value { font-size: 2.2rem; font-weight: 800; color: #ffffff; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-    .metric-delta-pos { color: #2dd4bf; font-size: 1rem; font-weight: 700; background: rgba(45, 212, 191, 0.1); padding: 2px 8px; border-radius: 4px; }
-    .metric-delta-neg { color: #f87171; font-size: 1rem; font-weight: 700; background: rgba(248, 113, 113, 0.1); padding: 2px 8px; border-radius: 4px; }
+    .metric-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .metric-value { font-size: 1.8rem; font-weight: 800; color: #ffffff; }
+    .metric-delta-pos { color: #2dd4bf; font-size: 0.9rem; font-weight: 700; }
+    .metric-delta-neg { color: #f87171; font-size: 0.9rem; font-weight: 700; }
     
 </style>
 """, unsafe_allow_html=True)
@@ -139,11 +143,10 @@ def create_pro_pptx(metrics, ai_text):
     prs = Presentation()
     
     # Colors
-    BG_COLOR = RGBColor(30, 41, 59)   # Dark Slate (Matches Dashboard)
-    ACCENT = RGBColor(45, 212, 191)   # Teal (Matches Dashboard)
+    BG_COLOR = RGBColor(30, 41, 59)   # Dark Slate
+    ACCENT = RGBColor(45, 212, 191)   # Teal
     TEXT_MAIN = RGBColor(241, 245, 249)
-    TEXT_SUB = RGBColor(148, 163, 184)
-    ROW_ALT = RGBColor(51, 65, 85)    # Slightly lighter for rows
+    ROW_ALT = RGBColor(51, 65, 85)
 
     def set_bg(slide):
         bg = slide.background
@@ -157,7 +160,6 @@ def create_pro_pptx(metrics, ai_text):
     title = slide.shapes.title
     title.text = "FinSight Executive Summary"
     title.text_frame.paragraphs[0].font.color.rgb = TEXT_MAIN
-    title.text_frame.paragraphs[0].font.bold = True
     
     sub = slide.placeholders[1]
     sub.text = "Automated Board Pack | June 2024"
@@ -166,16 +168,12 @@ def create_pro_pptx(metrics, ai_text):
     # SLIDE 2: KPI TABLE
     slide = prs.slides.add_slide(prs.slide_layouts[5])
     set_bg(slide)
-    
-    t_shape = slide.shapes.title
-    t_shape.text = "Financial Performance (YTD)"
-    t_shape.text_frame.paragraphs[0].font.color.rgb = TEXT_MAIN
+    t = slide.shapes.title
+    t.text = "Financial Performance (YTD)"
+    t.text_frame.paragraphs[0].font.color.rgb = TEXT_MAIN
 
     rows, cols = 7, 3
-    left = Inches(1)
-    top = Inches(2)
-    width = Inches(8)
-    height = Inches(3.5)
+    left, top, width, height = Inches(1), Inches(2), Inches(8), Inches(3.5)
     table = slide.shapes.add_table(rows, cols, left, top, width, height).table
 
     # Headers
@@ -204,28 +202,22 @@ def create_pro_pptx(metrics, ai_text):
             cell = table.cell(r_idx, c_idx)
             cell.text = str(val)
             cell.fill.solid()
-            # Alternating Row Colors
             cell.fill.fore_color.rgb = ROW_ALT if r_idx % 2 == 0 else BG_COLOR
-            
             p = cell.text_frame.paragraphs[0]
             p.font.color.rgb = TEXT_MAIN
             p.alignment = PP_ALIGN.CENTER
 
-    # SLIDE 3: STRATEGIC COMMENTARY
+    # SLIDE 3: COMMENTARY
     slide = prs.slides.add_slide(prs.slide_layouts[1])
     set_bg(slide)
-    
-    t_shape = slide.shapes.title
-    t_shape.text = "Strategic Commentary"
-    t_shape.text_frame.paragraphs[0].font.color.rgb = TEXT_MAIN
+    t = slide.shapes.title
+    t.text = "Strategic Commentary"
+    t.text_frame.paragraphs[0].font.color.rgb = TEXT_MAIN
     
     body = slide.placeholders[1]
-    clean_text = ai_text.replace('**', '').replace('###', '').replace('####', '')
-    body.text = clean_text
-    
+    body.text = ai_text.replace('**', '').replace('###', '')
     for p in body.text_frame.paragraphs:
-        p.font.color.rgb = TEXT_SUB
-        p.font.size = Pt(16)
+        p.font.color.rgb = RGBColor(200, 200, 200)
 
     output = BytesIO()
     prs.save(output)
@@ -238,7 +230,6 @@ def generate_ai_narrative():
         api_key = st.secrets["GEMINI_API_KEY"]
     except KeyError: return "⚠️ API Key Missing"
     
-    # Mock context
     context = f"YTD Rev: £800k (Budget £780k). Op Profit: £220k. Cash: £200k."
     prompt = f"You are a CFO. Write a board summary based on: {context}. Use clear headers (###) and bullet points."
     
@@ -248,9 +239,8 @@ def generate_ai_narrative():
         return r.json()['candidates'][0]['content']['parts'][0]['text'] if r.status_code == 200 else "AI Error"
     except: return "AI Error"
 
-# --- DASHBOARD VIEW ---
+# --- DASHBOARD ---
 def dashboard_view():
-    # 1. METRICS STRIP
     ytd = ANNUAL_DATA[ANNUAL_DATA['type'] == 'Actual'].sum()
     metrics = {
         'rev_val': format_k(ytd['revenue']), 'rev_delta': "+3.1%",
@@ -270,14 +260,14 @@ def dashboard_view():
     with cols[4]: render_glass_metric("Cash Flow", metrics['cf_val'], metrics['cf_delta'], True)
     with cols[5]: render_glass_metric("Accuracy", "94.2%", "-1.1%", False)
 
-    # 2. CHARTS
+    # CHARTS
     c_main, c_side = st.columns([2, 1])
     with c_main:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         fig = go.Figure()
         fig.add_trace(go.Bar(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['revenue'], name='Revenue', marker_color='#0ea5e9', opacity=0.8))
         fig.add_trace(go.Scatter(x=ANNUAL_DATA['month'], y=ANNUAL_DATA['operating_profit'], name='Op Profit', line=dict(color='#2dd4bf', width=3), yaxis='y2'))
-        fig.update_layout(title="Revenue & Profitability Trend (YTD + Forecast)", height=380, legend=dict(orientation="h", y=1.1), yaxis2=dict(overlaying='y', side='right', showgrid=False))
+        fig.update_layout(title="Revenue & Profit Trend", height=380, legend=dict(orientation="h", y=1.1), yaxis2=dict(overlaying='y', side='right', showgrid=False))
         fig = apply_glass_style(fig)
         st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -290,12 +280,12 @@ def dashboard_view():
             y = [55000, 15000, -2000, 0], connector = {"line":{"color":"white"}},
             decreasing = {"marker":{"color":"#f87171"}}, increasing = {"marker":{"color":"#2dd4bf"}}, totals = {"marker":{"color":"#94a3b8"}}
         ))
-        fig_bridge.update_layout(title="Profitability Bridge (June)", height=380)
+        fig_bridge.update_layout(title="Profit Bridge (Jun)", height=380)
         fig_bridge = apply_glass_style(fig_bridge)
         st.plotly_chart(fig_bridge, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. DRILL DOWN
+    # DRILL DOWN (FIXED)
     st.markdown("### 🔍 Multi-Layer Drill Down")
     col1, col2 = st.columns([1, 3])
     with col1:
@@ -306,9 +296,10 @@ def dashboard_view():
     with col2:
         drill_df = DRILL_DATA.copy()
         drill_df['Variance'] = drill_df['Actual'] - drill_df['Budget']
+        # FIX: Explicitly select only numeric columns for formatting to prevent ValueError
         st.dataframe(drill_df.style.format("{:,.0f}", subset=['Actual', 'Budget', 'Variance']), use_container_width=True)
 
-    # 4. AI & EXPORT
+    # AI & EXPORT
     st.markdown("### 🤖 Strategic Intelligence")
     c_ai, c_exp = st.columns([3, 1])
     
